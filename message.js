@@ -1,8 +1,9 @@
-import { sendMessage, sendVoice, sendChatAction } from '../telegram.js';
-import { askGemini } from '../gemini.js';
-import { textToSpeech } from '../tts.js';
-import { getHistory, addToHistory, clearHistory, getUserSettings, setUserSettings } from '../storage.js';
+import { sendMessage, sendVoice, sendChatAction } from './telegram.js';
+import { askGemini } from './gemini.js';
+import { textToSpeech } from './tts.js';
+import { getHistory, addToHistory, clearHistory, getUserSettings, setUserSettings } from './storage.js';
 import { showSettings, DEFAULTS } from './settings.js';
+import { resolveResponseMode, checkAndResetSticky } from './responseMode.js';
 
 export async function handleMessage(msg, env) {
   const chatId = msg.chat.id;
@@ -19,9 +20,16 @@ export async function handleMessage(msg, env) {
     getUserSettings(chatId, env)
   ]);
 
+  const updatedSettings = checkAndResetSticky('text', settings);
+  if (updatedSettings.stickyMode !== settings.stickyMode) {
+    await setUserSettings(chatId, updatedSettings, env);
+  }
+
+  const mode = resolveResponseMode('text', updatedSettings);
+
   let reply;
   try {
-    reply = await askGemini(text, history, settings, env);
+    reply = await askGemini(text, history, updatedSettings, env);
   } catch (e) {
     console.error('Gemini error:', e);
     await sendMessage(chatId, '⚠️ Sorry, I had a problem connecting. Try again!', env);
@@ -31,10 +39,10 @@ export async function handleMessage(msg, env) {
   await addToHistory(chatId, 'user', text, env);
   await addToHistory(chatId, 'model', reply, env);
 
-  if (settings.voiceMode) {
+  if (mode === 'voice') {
     await sendChatAction(chatId, 'record_voice', env);
     const plainReply = reply.replace(/<[^>]*>/g, '');
-    const audio = await textToSpeech(plainReply, settings, env);
+    const audio = await textToSpeech(plainReply, updatedSettings, env);
 
     if (audio) {
       await sendVoice(chatId, audio, env);
@@ -100,8 +108,9 @@ async function handleCommand(text, chatId, env) {
     case '/voice': {
       const settings = await getUserSettings(chatId, env);
       settings.voiceMode = !settings.voiceMode;
+      settings.stickyMode = true;
       await setUserSettings(chatId, settings, env);
-      const status = settings.voiceMode ? '🔊 Voice mode ON' : '💬 Voice mode OFF';
+      const status = settings.voiceMode ? '🔊 Голос (закреплён)' : '💬 Текст (закреплён)';
       await sendMessage(chatId, status, env);
       break;
     }

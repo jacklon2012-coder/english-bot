@@ -1,10 +1,11 @@
-import { sendMessage, editMessage } from '../telegram.js';
-import { getUserSettings, setUserSettings } from '../storage.js';
+import { sendMessage, editMessage } from './telegram.js';
+import { getUserSettings, setUserSettings } from './storage.js';
 
 // ─── Settings structure ───────────────────────────────────────────────────────
 
 export const DEFAULTS = {
   voiceMode: false,
+  stickyMode: false,
   botGender: 'male',       // 'male' | 'female'
   level: 'neutral',        // 'a1' | 'a2' | 'b1' | 'b2' | 'c1' | 'neutral'
   topics: [],              // [] = everyday/no filter, or array of topic keys
@@ -46,10 +47,17 @@ export async function showSettings(chatId, env, messageId = null) {
   }
 }
 
-function buildSettingsText(settings) {
+export function buildSettingsText(settings) {
   const level = LEVELS[settings.level || 'neutral'];
   const gender = settings.botGender === 'female' ? '👩 Female (Alex)' : '👨 Male (Alex)';
-  const voiceStatus = settings.voiceMode ? '🔊 On' : '💬 Off';
+  let voiceStatus;
+  if (!settings.stickyMode) {
+    voiceStatus = '🔄 Авто (зеркалирование)';
+  } else if (settings.voiceMode) {
+    voiceStatus = '🔊 Голос (закреплён)';
+  } else {
+    voiceStatus = '💬 Текст (закреплён)';
+  }
   const topicsList = settings.topics?.length
     ? settings.topics.map(t => TOPICS[t]).join(', ')
     : '🗣 Everyday / No filter';
@@ -164,6 +172,7 @@ export async function handleSettingsCallback(query, env) {
   // settings:toggle_voice
   if (data === 'settings:toggle_voice') {
     settings.voiceMode = !settings.voiceMode;
+    settings.stickyMode = true;
     await setUserSettings(chatId, settings, env);
     await showSettings(chatId, env, messageId);
     return;

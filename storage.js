@@ -29,12 +29,14 @@ export async function clearHistory(chatId, env) {
   await env.KV.delete(`history:${chatId}`);
 }
 
+const DEFAULTS = { voiceMode: false, stickyMode: false };
+
 export async function getUserSettings(chatId, env) {
   try {
     const data = await env.KV.get(`settings:${chatId}`);
-    return data ? JSON.parse(data) : { voiceMode: false };
+    return data ? { ...DEFAULTS, ...JSON.parse(data) } : { ...DEFAULTS };
   } catch {
-    return { voiceMode: false };
+    return { ...DEFAULTS };
   }
 }
 

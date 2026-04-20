@@ -1,8 +1,9 @@
-import { sendMessage, sendVoice, sendChatAction, getFile, downloadFile } from '../telegram.js';
-import { transcribeAudio } from '../stt.js';
-import { askGemini } from '../gemini.js';
-import { textToSpeech } from '../tts.js';
-import { getHistory, addToHistory, getUserSettings } from '../storage.js';
+import { sendMessage, sendVoice, sendChatAction, getFile, downloadFile } from './telegram.js';
+import { transcribeAudio } from './stt.js';
+import { askGemini } from './gemini.js';
+import { textToSpeech } from './tts.js';
+import { getHistory, addToHistory, getUserSettings, setUserSettings } from './storage.js';
+import { resolveResponseMode, checkAndResetSticky } from './responseMode.js';
 
 export async function handleVoice(msg, env) {
   const chatId = msg.chat.id;
@@ -42,9 +43,16 @@ export async function handleVoice(msg, env) {
     getUserSettings(chatId, env)
   ]);
 
+  const updatedSettings = checkAndResetSticky('voice', settings);
+  if (updatedSettings.stickyMode !== settings.stickyMode) {
+    await setUserSettings(chatId, updatedSettings, env);
+  }
+
+  const mode = resolveResponseMode('voice', updatedSettings);
+
   let reply;
   try {
-    reply = await askGemini(transcript, history, settings, env);
+    reply = await askGemini(transcript, history, updatedSettings, env);
   } catch (e) {
     console.error('Gemini error:', e);
     await sendMessage(chatId, '⚠️ Problem getting a reply. Try again!', env);
@@ -54,15 +62,19 @@ export async function handleVoice(msg, env) {
   await addToHistory(chatId, 'user', transcript, env);
   await addToHistory(chatId, 'model', reply, env);
 
-  await sendChatAction(chatId, 'record_voice', env);
-  const plainReply = reply.replace(/<[^>]*>/g, '');
-  const audio = await textToSpeech(plainReply, settings, env);
+  if (mode === 'voice') {
+    await sendChatAction(chatId, 'record_voice', env);
+    const plainReply = reply.replace(/<[^>]*>/g, '');
+    const audio = await textToSpeech(plainReply, updatedSettings, env);
 
-  if (audio) {
-    await sendVoice(chatId, audio, env);
-    if (reply.includes('💬')) {
-      const tip = reply.substring(reply.indexOf('💬'));
-      await sendMessage(chatId, tip, env);
+    if (audio) {
+      await sendVoice(chatId, audio, env);
+      if (reply.includes('💬')) {
+        const tip = reply.substring(reply.indexOf('💬'));
+        await sendMessage(chatId, tip, env);
+      }
+    } else {
+      await sendMessage(chatId, reply, env);
     }
   } else {
     await sendMessage(chatId, reply, env);
