@@ -1,0 +1,16 @@
+name = "english-bot"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# KV namespace for storing conversation history and settings
+# After creating KV namespace, replace the id below
+[[kv_namespaces]]
+binding = "KV"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# Environment variables — set these via `wrangler secret put`
+# TELEGRAM_TOKEN
+# GEMINI_API_KEY
+# GROQ_API_KEY
+# ELEVENLABS_API_KEY      (optional)
+# ELEVENLABS_VOICE_ID     (optional, defaults to Rachel)
