@@ -1,6 +1,6 @@
 import { sendMessage, sendVoice, sendChatAction, getFile, downloadFile } from './telegram.js';
 import { transcribeAudio } from './stt.js';
-import { askGemini } from './gemini.js';
+import { askGroq as askGemini } from './groq.js';
 import { textToSpeech } from './tts.js';
 import { getHistory, addToHistory, getUserSettings, setUserSettings } from './storage.js';
 import { resolveResponseMode, checkAndResetSticky } from './responseMode.js';

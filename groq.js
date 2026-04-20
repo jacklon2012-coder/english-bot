@@ -1,5 +1,7 @@
 import { LEVELS, TOPICS } from './settings.js';
 
+const MODEL = 'llama-3.3-70b-versatile';
+
 function buildSystemPrompt(settings = {}) {
   const gender = settings.botGender === 'female' ? 'woman' : 'man';
   const level = settings.level || 'neutral';
@@ -39,39 +41,37 @@ Level: ${levelInstruction}
 Topics: ${topicsInstruction}`;
 }
 
-export async function askGemini(userMessage, history, settings, env) {
+export async function askGroq(userMessage, history, settings, env) {
   const systemPrompt = buildSystemPrompt(settings);
 
-  const messages = history.map(h => ({
-    role: h.role,
-    parts: [{ text: h.text }]
-  }));
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...history.map(h => ({
+      role: h.role === 'model' ? 'assistant' : h.role,
+      content: h.text
+    })),
+    { role: 'user', content: userMessage }
+  ];
 
-  messages.push({
-    role: 'user',
-    parts: [{ text: userMessage }]
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${env.GROQ_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages,
+      temperature: 0.8,
+      max_tokens: 500
+    })
   });
-
-  const body = {
-    system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: messages,
-    generationConfig: { temperature: 0.8, maxOutputTokens: 500 }
-  };
-
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${env.GEMINI_API_KEY}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }
-  );
 
   const data = await res.json();
 
-  if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-    throw new Error('Gemini returned no content: ' + JSON.stringify(data));
+  if (!data.choices?.[0]?.message?.content) {
+    throw new Error('Groq returned no content: ' + JSON.stringify(data));
   }
 
-  return data.candidates[0].content.parts[0].text;
+  return data.choices[0].message.content;
 }

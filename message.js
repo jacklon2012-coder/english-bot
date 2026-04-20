@@ -1,5 +1,5 @@
 import { sendMessage, sendVoice, sendChatAction } from './telegram.js';
-import { askGemini } from './gemini.js';
+import { askGroq as askGemini } from './groq.js';
 import { textToSpeech } from './tts.js';
 import { getHistory, addToHistory, clearHistory, getUserSettings, setUserSettings } from './storage.js';
 import { showSettings, DEFAULTS } from './settings.js';
