@@ -14,3 +14,18 @@ id = "33240325f92e4b22bc95e5327e07ba1a"
 # GROQ_API_KEY
 # ELEVENLABS_API_KEY      (optional)
 # ELEVENLABS_VOICE_ID     (optional, defaults to Rachel)
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1

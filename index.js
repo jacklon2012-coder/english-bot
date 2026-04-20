@@ -8,19 +8,19 @@ import { handleVoice } from './voice.js';
 import { handleCallback } from './callback.js';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method !== 'POST') {
       return new Response('English Practice Bot is running!', { status: 200 });
     }
 
     try {
       const update = await request.json();
-      await handleUpdate(update, env);
+      // Return 200 to Telegram immediately, process in background
+      ctx.waitUntil(handleUpdate(update, env));
     } catch (e) {
-      console.error('Error processing update:', e);
+      console.error('Error parsing update:', e);
     }
 
-    // Always return 200 to Telegram quickly
     return new Response('OK', { status: 200 });
   }
 };
