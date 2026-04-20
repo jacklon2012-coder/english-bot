@@ -1,4 +1,4 @@
-import { sendMessage, sendVoice, sendChatAction, getFile, downloadFile } from './telegram.js';
+import { sendMessage, sendMessageChunked, sendVoice, sendChatAction, getFile, downloadFile } from './telegram.js';
 import { transcribeAudio } from './stt.js';
 import { askGroq as askGemini } from './groq.js';
 import { textToSpeech } from './tts.js';
@@ -74,9 +74,9 @@ export async function handleVoice(msg, env) {
         await sendMessage(chatId, tip, env);
       }
     } else {
-      await sendMessage(chatId, reply, env);
+      await sendMessageChunked(chatId, reply, env);
     }
   } else {
-    await sendMessage(chatId, reply, env);
+    await sendMessageChunked(chatId, reply, env);
   }
 }

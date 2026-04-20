@@ -1,4 +1,4 @@
-import { sendMessage, sendVoice, sendChatAction } from './telegram.js';
+import { sendMessage, sendMessageChunked, sendVoice, sendChatAction } from './telegram.js';
 import { askGroq as askGemini } from './groq.js';
 import { textToSpeech } from './tts.js';
 import { getHistory, addToHistory, clearHistory, getUserSettings, setUserSettings } from './storage.js';
@@ -51,10 +51,10 @@ export async function handleMessage(msg, env) {
         await sendMessage(chatId, tip, env);
       }
     } else {
-      await sendMessage(chatId, reply, env);
+      await sendMessageChunked(chatId, reply, env);
     }
   } else {
-    await sendMessage(chatId, reply, env);
+    await sendMessageChunked(chatId, reply, env);
   }
 }
 

@@ -54,6 +54,16 @@ export async function downloadFile(filePath, env) {
   return res.arrayBuffer();
 }
 
+export async function sendMessageChunked(chatId, text, env) {
+  const chunks = text.split(/\n\n+/).map(s => s.trim()).filter(Boolean);
+  for (const chunk of chunks) {
+    await sendMessage(chatId, chunk, env);
+    if (chunks.length > 1) {
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+}
+
 export async function editMessage(chatId, messageId, text, keyboard, env) {
   const body = {
     chat_id: chatId,

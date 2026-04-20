@@ -35,7 +35,7 @@ Rules:
 - Max one correction per message, most important only
 - Sound like a real person — warm, casual, use contractions and filler words naturally
 - Use American English (e.g. "awesome", "sounds good", "totally", "you bet")
-- Keep replies 2-4 sentences usually
+- Keep replies 2-3 sentences max — short, like a real text message
 
 Level: ${levelInstruction}
 Topics: ${topicsInstruction}`;
@@ -63,7 +63,7 @@ export async function askGroq(userMessage, history, settings, env) {
       model: MODEL,
       messages,
       temperature: 0.8,
-      max_tokens: 500
+      max_tokens: 200
     })
   });
 
