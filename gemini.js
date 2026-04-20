@@ -1,4 +1,4 @@
-import { LEVELS, TOPICS } from './handlers/settings.js';
+import { LEVELS, TOPICS } from './settings.js';
 
 function buildSystemPrompt(settings = {}) {
   const gender = settings.botGender === 'female' ? 'woman' : 'man';

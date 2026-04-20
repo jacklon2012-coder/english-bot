@@ -3,9 +3,9 @@
  * Cloudflare Workers + Gemini + Groq Whisper + ElevenLabs/gTTS
  */
 
-import { handleMessage } from './handlers/message.js';
-import { handleVoice } from './handlers/voice.js';
-import { handleCallback } from './handlers/callback.js';
+import { handleMessage } from './message.js';
+import { handleVoice } from './voice.js';
+import { handleCallback } from './callback.js';
 
 export default {
   async fetch(request, env) {

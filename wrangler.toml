@@ -1,12 +1,12 @@
 name = "english-bot"
-main = "src/index.js"
+main = "index.js"
 compatibility_date = "2024-01-01"
 
 # KV namespace for storing conversation history and settings
 # After creating KV namespace, replace the id below
 [[kv_namespaces]]
 binding = "KV"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "33240325f92e4b22bc95e5327e07ba1a"
 
 # Environment variables — set these via `wrangler secret put`
 # TELEGRAM_TOKEN
