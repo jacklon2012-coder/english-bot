@@ -10,10 +10,11 @@ export async function getHistory(chatId, env) {
   }
 }
 
-export async function addToHistory(chatId, role, text, env) {
+// entries: [{ role, text }] — a whole turn in one KV read+write
+export async function appendHistory(chatId, entries, env) {
   const history = await getHistory(chatId, env);
 
-  history.push({ role, text });
+  history.push(...entries);
 
   // Trim to last MAX_HISTORY messages
   const trimmed = history.slice(-MAX_HISTORY);

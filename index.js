@@ -1,6 +1,6 @@
 /**
  * Telegram English Practice Bot
- * Cloudflare Workers + Gemini + Groq Whisper + ElevenLabs/gTTS
+ * Cloudflare Workers + Groq Llama 3.3 + Groq Whisper + ElevenLabs/gTTS
  */
 
 import { handleMessage } from './message.js';
@@ -11,6 +11,12 @@ export default {
   async fetch(request, env, ctx) {
     if (request.method !== 'POST') {
       return new Response('English Practice Bot is running!', { status: 200 });
+    }
+
+    // Telegram signs webhook calls with secret_token when configured
+    const secret = env.TELEGRAM_WEBHOOK_SECRET;
+    if (secret && request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== secret) {
+      return new Response('Unauthorized', { status: 401 });
     }
 
     try {

@@ -1,6 +1,5 @@
 const ELEVEN_LIMIT = 9500;
-const ELEVEN_COUNTER_KEY = 'elevenlabs_chars_used';
-const ELEVEN_MONTH_KEY = 'elevenlabs_reset_month';
+const USAGE_TTL_SECONDS = 60 * 60 * 24 * 60; // outlives a monthly reset
 
 // American English premade voice IDs
 const VOICES = {
@@ -8,13 +7,46 @@ const VOICES = {
   female: 'EXAVITQu4vr4xnSDxMaL', // Bella — conversational American female
 };
 
-export async function textToSpeech(text, settings = {}, env) {
-  const shouldUseEleven = await checkElevenLabsQuota(text, env);
+const currentMonth = () => new Date().toISOString().slice(0, 7);
 
-  if (shouldUseEleven) {
+// The ElevenLabs quota is account-wide, so per-chat counters only approximate
+// it. A single global key raced under KV last-write-wins; overshooting the
+// real quota is safe anyway — ElevenLabs errors out and we fall back to gTTS.
+async function getElevenUsage(chatId, env) {
+  const raw = await env.KV.get(`elevenlabs_usage:${chatId}`);
+  if (!raw) return 0;
+  const { month, used } = JSON.parse(raw);
+  return month === currentMonth() ? used : 0;
+}
+
+async function elevenQuotaAvailable(chatId, text, env) {
+  if (!env.ELEVENLABS_API_KEY) return false;
+  try {
+    const used = await getElevenUsage(chatId, env);
+    return used + text.length < ELEVEN_LIMIT;
+  } catch {
+    return false;
+  }
+}
+
+async function addElevenUsage(chatId, chars, env) {
+  try {
+    const used = await getElevenUsage(chatId, env);
+    await env.KV.put(
+      `elevenlabs_usage:${chatId}`,
+      JSON.stringify({ month: currentMonth(), used: used + chars }),
+      { expirationTtl: USAGE_TTL_SECONDS }
+    );
+  } catch (e) {
+    console.error('Failed to update ElevenLabs usage:', e);
+  }
+}
+
+export async function textToSpeech(chatId, text, settings = {}, env) {
+  if (await elevenQuotaAvailable(chatId, text, env)) {
     try {
       const audio = await elevenLabsTTS(text, settings, env);
-      await incrementElevenLabsCounter(text.length, env);
+      await addElevenUsage(chatId, text.length, env);
       return audio;
     } catch (e) {
       console.error('ElevenLabs failed, falling back to gTTS:', e);
@@ -26,32 +58,6 @@ export async function textToSpeech(text, settings = {}, env) {
   } catch (e) {
     console.error('gTTS also failed:', e);
     return null;
-  }
-}
-
-async function checkElevenLabsQuota(text, env) {
-  if (!env.ELEVENLABS_API_KEY) return false;
-  try {
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    const storedMonth = await env.KV.get(ELEVEN_MONTH_KEY);
-    if (storedMonth !== currentMonth) {
-      await env.KV.put(ELEVEN_MONTH_KEY, currentMonth);
-      await env.KV.put(ELEVEN_COUNTER_KEY, '0');
-      return true;
-    }
-    const used = parseInt(await env.KV.get(ELEVEN_COUNTER_KEY) || '0');
-    return used + text.length < ELEVEN_LIMIT;
-  } catch {
-    return false;
-  }
-}
-
-async function incrementElevenLabsCounter(chars, env) {
-  try {
-    const used = parseInt(await env.KV.get(ELEVEN_COUNTER_KEY) || '0');
-    await env.KV.put(ELEVEN_COUNTER_KEY, String(used + chars));
-  } catch (e) {
-    console.error('Failed to update ElevenLabs counter:', e);
   }
 }
 
@@ -85,8 +91,23 @@ async function elevenLabsTTS(text, settings, env) {
   return res.arrayBuffer();
 }
 
+// Google Translate TTS takes ~200 chars per request; cut at a sentence
+// boundary so fallback audio doesn't stop mid-word.
+export function cutToLength(text, limit) {
+  if (text.length <= limit) return text;
+  const slice = text.slice(0, limit);
+  const sentenceEnd = Math.max(
+    slice.lastIndexOf('. '),
+    slice.lastIndexOf('! '),
+    slice.lastIndexOf('? ')
+  );
+  if (sentenceEnd > 0) return slice.slice(0, sentenceEnd + 1);
+  const space = slice.lastIndexOf(' ');
+  return space > 0 ? slice.slice(0, space) : slice;
+}
+
 async function gTTS(text) {
-  const chunk = text.slice(0, 200);
+  const chunk = cutToLength(text, 200);
   const encoded = encodeURIComponent(chunk);
   const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encoded}&tl=en-US&client=tw-ob`;
 

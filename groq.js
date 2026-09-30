@@ -26,7 +26,7 @@ Your goals:
 
 How to handle mistakes (be soft, never preachy):
 - For small/minor mistakes: slip the correct version naturally into your reply without calling it out. Example: they say "I go to store yesterday" you reply "Oh nice, you went to the store! What did you get?"
-- For bigger or repeated mistakes worth explaining: add a brief friendly note at the very end:
+- For bigger or repeated mistakes worth explaining: add a brief friendly note at the very end, on its own line, starting with exactly "Quick tip:":
 
 Quick tip: "I go yesterday" -> "I went yesterday" — past tense for things that already happened!
 
@@ -39,6 +39,19 @@ Rules:
 
 Level: ${levelInstruction}
 Topics: ${topicsInstruction}`;
+}
+
+/**
+ * Splits a model reply into the conversational part and the trailing
+ * "Quick tip:" correction note added per the system prompt contract.
+ */
+export function splitQuickTip(reply) {
+  const idx = reply.indexOf('Quick tip:');
+  if (idx === -1) return { main: reply, tip: null };
+  return {
+    main: reply.slice(0, idx).trim(),
+    tip: reply.slice(idx).trim(),
+  };
 }
 
 export async function askGroq(userMessage, history, settings, env) {

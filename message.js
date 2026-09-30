@@ -1,7 +1,7 @@
-import { sendMessage, sendMessageChunked, sendVoice, sendChatAction } from './telegram.js';
-import { askGroq as askGemini } from './groq.js';
+import { sendMessage, sendMessageChunked, sendVoice, startTypingIndicator } from './telegram.js';
+import { askGroq, splitQuickTip } from './groq.js';
 import { textToSpeech } from './tts.js';
-import { getHistory, addToHistory, clearHistory, getUserSettings, setUserSettings } from './storage.js';
+import { getHistory, appendHistory, clearHistory, getUserSettings, setUserSettings } from './storage.js';
 import { showSettings, DEFAULTS } from './settings.js';
 import { resolveResponseMode, checkAndResetSticky } from './responseMode.js';
 
@@ -13,49 +13,72 @@ export async function handleMessage(msg, env) {
     return handleCommand(text, chatId, env);
   }
 
-  await sendChatAction(chatId, 'typing', env);
+  let stopTyping = startTypingIndicator(chatId, env);
 
-  const [history, settings] = await Promise.all([
-    getHistory(chatId, env),
-    getUserSettings(chatId, env)
-  ]);
-
-  const updatedSettings = checkAndResetSticky('text', settings);
-  if (updatedSettings.stickyMode !== settings.stickyMode) {
-    await setUserSettings(chatId, updatedSettings, env);
-  }
-
-  const mode = resolveResponseMode('text', updatedSettings);
-
-  let reply;
   try {
-    reply = await askGemini(text, history, updatedSettings, env);
-  } catch (e) {
-    console.error('Gemini error:', e);
-    await sendMessage(chatId, '⚠️ Sorry, I had a problem connecting. Try again!', env);
-    return;
-  }
+    const [history, settings] = await Promise.all([
+      getHistory(chatId, env),
+      getUserSettings(chatId, env)
+    ]);
 
-  await addToHistory(chatId, 'user', text, env);
-  await addToHistory(chatId, 'model', reply, env);
+    const updatedSettings = checkAndResetSticky('text', settings);
+    if (updatedSettings.stickyMode !== settings.stickyMode) {
+      await setUserSettings(chatId, updatedSettings, env);
+    }
 
-  if (mode === 'voice') {
-    await sendChatAction(chatId, 'record_voice', env);
-    const plainReply = reply.replace(/<[^>]*>/g, '');
-    const audio = await textToSpeech(plainReply, updatedSettings, env);
+    const mode = resolveResponseMode('text', updatedSettings);
 
-    if (audio) {
-      await sendVoice(chatId, audio, env);
-      if (reply.includes('💬')) {
-        const tip = reply.substring(reply.indexOf('💬'));
-        await sendMessage(chatId, tip, env);
+    let reply;
+    try {
+      reply = await askGroq(text, history, updatedSettings, env);
+    } catch (e) {
+      console.error('LLM error:', e);
+      await sendMessage(chatId, '⚠️ Sorry, I had a problem connecting. Try again!', env);
+      return;
+    }
+
+    await appendHistory(chatId, [
+      { role: 'user', text },
+      { role: 'model', text: reply }
+    ], env);
+
+    if (mode === 'voice') {
+      stopTyping();
+      stopTyping = startTypingIndicator(chatId, env, 'record_voice');
+      const { main, tip } = splitQuickTip(reply);
+      const plainReply = main.replace(/<[^>]*>/g, '');
+      const audio = await textToSpeech(chatId, plainReply, updatedSettings, env);
+
+      if (audio) {
+        await sendVoice(chatId, audio, env);
+        if (tip) {
+          await sendMessage(chatId, tip, env);
+        }
+      } else {
+        await sendMessageChunked(chatId, reply, env);
       }
     } else {
       await sendMessageChunked(chatId, reply, env);
     }
-  } else {
-    await sendMessageChunked(chatId, reply, env);
+  } finally {
+    stopTyping();
   }
+}
+
+async function sendStarter(chatId, prompt, settings, env) {
+  const stopTyping = startTypingIndicator(chatId, env);
+  let starter;
+  try {
+    starter = await askGroq(prompt, [], settings, env);
+  } catch (e) {
+    console.error('LLM error:', e);
+    await sendMessage(chatId, '⚠️ Could not start the conversation right now. Try /new in a minute!', env);
+    return;
+  } finally {
+    stopTyping();
+  }
+  await sendMessage(chatId, starter, env);
+  await appendHistory(chatId, [{ role: 'model', text: starter }], env);
 }
 
 async function handleCommand(text, chatId, env) {
@@ -78,13 +101,11 @@ async function handleCommand(text, chatId, env) {
         `/help — show this message`,
         env
       );
-      const settings = await getUserSettings(chatId, env);
-      const starter = await askGemini(
+      await sendStarter(
+        chatId,
         'Start the conversation with a friendly greeting and an interesting question.',
-        [], settings, env
+        existing, env
       );
-      await sendMessage(chatId, starter, env);
-      await addToHistory(chatId, 'model', starter, env);
       break;
     }
 
@@ -96,12 +117,11 @@ async function handleCommand(text, chatId, env) {
       await clearHistory(chatId, env);
       await sendMessage(chatId, '🔄 Fresh start!', env);
       const settings = await getUserSettings(chatId, env);
-      const starter = await askGemini(
+      await sendStarter(
+        chatId,
         'Start a new conversation with a greeting and an interesting open-ended question on a random topic.',
-        [], settings, env
+        settings, env
       );
-      await sendMessage(chatId, starter, env);
-      await addToHistory(chatId, 'model', starter, env);
       break;
     }
 
