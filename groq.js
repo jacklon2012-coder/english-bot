@@ -1,6 +1,7 @@
 import { LEVELS, TOPICS } from './settings.js';
 
-const MODEL = 'llama-3.3-70b-versatile';
+// llama-3.3-70b-versatile was decommissioned by Groq on 2026-08-16
+const MODEL = 'openai/gpt-oss-120b';
 
 function buildSystemPrompt(settings = {}) {
   const gender = settings.botGender === 'female' ? 'woman' : 'man';
@@ -76,7 +77,9 @@ export async function askGroq(userMessage, history, settings, env) {
       model: MODEL,
       messages,
       temperature: 0.8,
-      max_tokens: 200
+      // gpt-oss reasoning tokens count toward max_tokens
+      reasoning_effort: 'low',
+      max_tokens: 500
     })
   });
 
